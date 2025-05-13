@@ -1,0 +1,1 @@
+Epoch,Loss,Micro_f1,Macro_f1,NMI,ARI,Purity,Silhouette
