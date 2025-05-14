@@ -35,12 +35,12 @@ model_config = {
     'g_agg_type': 'mean',  # Graph representation encoder: mean, sum
     'drop_out': 0.3,
     'cgnn_non_linear': True,  # Enable non linear activation function for CGNN
-    'multi_attn_linear': False,  # Enable atten K/Q-linear for each type
+    'multi_attn_linear': True,  # Enable atten K/Q-linear for each type
     'graph_attention': True,
     'kq_linear_out_dim': 256,
-    'path_attention': False,  # Enable Context path attention
+    'path_attention': True,  # Enable Context path attention
     'c_linear_out_dim': 8,
-    'enable_bilinear': False,  # Enable Bilinear for context attention
+    'enable_bilinear': True,  # Enable Bilinear for context attention
     'gru': True,
     'add_init': False
 }
