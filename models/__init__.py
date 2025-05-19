@@ -8,3 +8,5 @@
 # @Describe:
 
 from .CGNN import ContextGNN
+from .AE_CGNN import AttributeEnhancedCGNN
+from .adaptive_cp_gnn import AdaptiveCPGNN, AdaptiveDynamicCPGNN, ContextPathLengthPredictor
