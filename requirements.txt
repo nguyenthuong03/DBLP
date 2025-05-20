@@ -10,3 +10,5 @@ dgl==0.4.3.post2
 numpy==1.16.6
 scipy==1.4.1
 scikit-learn==0.21.3
+transformers>=4.10.0
+yake>=0.4.8
