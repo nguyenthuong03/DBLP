@@ -8,3 +8,5 @@
 # @Describe:
 
 from .CGNN import ContextGNN
+from .attribute_encoder import AttributeEncoder, NodeAttributeManager
+from .AE_CGNN import AE_ContextGNN, create_ae_model_config
