@@ -8,3 +8,4 @@
 # @Describe:
 
 from .CGNN import ContextGNN
+from .adaptive_cgnn import AdaptiveContextGNN

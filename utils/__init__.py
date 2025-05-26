@@ -11,3 +11,4 @@ from .preprocess import load_data
 from .earlystop import EarlyStopping
 from .helper import *
 from .evluator import Evaluator
+from .structural_features import StructuralFeatureExtractor
