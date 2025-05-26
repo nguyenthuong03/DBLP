@@ -8,6 +8,7 @@
 # @Describe:
 
 from .preprocess import load_data
+from .dynamic_preprocess import load_dynamic_data, DynamicDBLPDataLoader
 from .earlystop import EarlyStopping
 from .helper import *
 from .evluator import Evaluator

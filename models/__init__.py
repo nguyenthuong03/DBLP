@@ -8,3 +8,4 @@
 # @Describe:
 
 from .CGNN import ContextGNN
+from .DynamicCGNN import DynamicContextGNN, DynamicEdgesDataset
