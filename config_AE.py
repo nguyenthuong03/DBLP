@@ -15,7 +15,7 @@ data_config = {
     'data_name': 'DBLP.mat',
     'primary_type': 'a',  # Focus on author classification
     'task': ['CF', 'CL'],
-    'K_length': 3,
+    'K_length': 4,
     'ignore_edge_type': True,
     'resample': False,
     'random_seed': 123,
