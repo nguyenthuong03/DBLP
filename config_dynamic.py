@@ -17,7 +17,7 @@ data_config = {
     'data_name': 'DBLP.mat',
     'primary_type': 'a',  # Author nodes as primary type
     'task': ['CF', 'CL'],  # Classification and Clustering tasks
-    'K_length': 3,  # 3-hop context as specified
+    'K_length': 4,  # 3-hop context as specified
     'ignore_edge_type': True,
     'resample': False,
     'random_seed': 123,
