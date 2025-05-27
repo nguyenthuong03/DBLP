@@ -90,61 +90,96 @@ class DynamicDBLPDataLoader(GraphDataLoader):
 
     def create_snapshot_subgraph(self, max_paper_idx):
         """
-        Create a subgraph containing papers up to max_paper_idx and their connections
+        Create a subgraph containing papers up to max_paper_idx and their connections,
+        ensuring that nodes (authors, confs, terms) are filtered if their original IDs
+        are out of bounds for their respective feature matrices.
         """
         # Get paper indices for this snapshot
-        paper_nodes = torch.arange(max_paper_idx)
+        # paper_nodes = torch.arange(max_paper_idx) # Unused
+
+        # Get sparse matrices for the current slice of papers
+        p_vs_a_snapshot = self.raw_matrix['p_vs_a'].tocsr()[:max_paper_idx, :]
+        p_vs_c_snapshot = self.raw_matrix['p_vs_c'].tocsr()[:max_paper_idx, :]
+        p_vs_t_snapshot = self.raw_matrix['p_vs_t'].tocsr()[:max_paper_idx, :]
+
+        # Get original IDs of active authors, conferences, and terms in this snapshot
+        snapshot_orig_author_ids = np.unique(p_vs_a_snapshot.nonzero()[1])
+        snapshot_orig_conf_ids = np.unique(p_vs_c_snapshot.nonzero()[1])
+        snapshot_orig_term_ids = np.unique(p_vs_t_snapshot.nonzero()[1])
+
+        # --- Filter active nodes based on feature matrix availability ---
+        # Author filtering
+        if 'a_feature' in self.raw_matrix:
+            num_total_authors_with_features = self.raw_matrix['a_feature'].shape[0]
+            valid_snapshot_author_ids = snapshot_orig_author_ids[snapshot_orig_author_ids < num_total_authors_with_features]
+        else:
+            valid_snapshot_author_ids = snapshot_orig_author_ids # Assume all valid if no feature matrix
+
+        # Conference filtering (assuming 'c_feature' is the key if it exists)
+        if 'c_feature' in self.raw_matrix:
+            num_total_confs_with_features = self.raw_matrix['c_feature'].shape[0]
+            valid_snapshot_conf_ids = snapshot_orig_conf_ids[snapshot_orig_conf_ids < num_total_confs_with_features]
+        else:
+            valid_snapshot_conf_ids = snapshot_orig_conf_ids
+
+        # Term filtering (assuming 't_feature' is the key if it exists)
+        if 't_feature' in self.raw_matrix:
+            num_total_terms_with_features = self.raw_matrix['t_feature'].shape[0]
+            valid_snapshot_term_ids = snapshot_orig_term_ids[snapshot_orig_term_ids < num_total_terms_with_features]
+        else:
+            valid_snapshot_term_ids = snapshot_orig_term_ids
+            
+        # Create remapping dictionaries from valid original ID to new 0-based snapshot ID
+        author_remapping_dict = {old_id: new_id for new_id, old_id in enumerate(valid_snapshot_author_ids)}
+        conf_remapping_dict = {old_id: new_id for new_id, old_id in enumerate(valid_snapshot_conf_ids)}
+        term_remapping_dict = {old_id: new_id for new_id, old_id in enumerate(valid_snapshot_term_ids)}
+
+        # Get original (paper_idx, original_node_id) edges from snapshot matrices
+        src_p_indices_for_authors, orig_author_ids_for_edges = p_vs_a_snapshot.nonzero()
+        src_p_indices_for_confs, orig_conf_ids_for_edges = p_vs_c_snapshot.nonzero()
+        src_p_indices_for_terms, orig_term_ids_for_edges = p_vs_t_snapshot.nonzero()
+
+        # --- Filter edges and remap destination node IDs ---
+        # Paper -> Author edges
+        filtered_src_p_for_a, remapped_dst_a = [], []
+        for p_node_idx, orig_a_id in zip(src_p_indices_for_authors, orig_author_ids_for_edges):
+            if orig_a_id in author_remapping_dict:  # Check if this author is valid and included
+                filtered_src_p_for_a.append(p_node_idx)
+                remapped_dst_a.append(author_remapping_dict[orig_a_id])
+
+        # Paper -> Conference edges
+        filtered_src_p_for_c, remapped_dst_c = [], []
+        for p_node_idx, orig_c_id in zip(src_p_indices_for_confs, orig_conf_ids_for_edges):
+            if orig_c_id in conf_remapping_dict:
+                filtered_src_p_for_c.append(p_node_idx)
+                remapped_dst_c.append(conf_remapping_dict[orig_c_id])
+
+        # Paper -> Term edges
+        filtered_src_p_for_t, remapped_dst_t = [], []
+        for p_node_idx, orig_t_id in zip(src_p_indices_for_terms, orig_term_ids_for_edges):
+            if orig_t_id in term_remapping_dict:
+                filtered_src_p_for_t.append(p_node_idx)
+                remapped_dst_t.append(term_remapping_dict[orig_t_id])
         
-        # Find connected authors, conferences, and terms
-        p_vs_a = self.raw_matrix['p_vs_a'][:max_paper_idx, :]
-        p_vs_c = self.raw_matrix['p_vs_c'][:max_paper_idx, :]
-        p_vs_t = self.raw_matrix['p_vs_t'][:max_paper_idx, :]
-        
-        # Get active authors, conferences, and terms
-        active_authors = np.unique(p_vs_a.nonzero()[1])
-        active_confs = np.unique(p_vs_c.nonzero()[1])
-        active_terms = np.unique(p_vs_t.nonzero()[1])
-        
-        # Create mappings for the subgraph
-        author_mapping = {old_id: new_id for new_id, old_id in enumerate(active_authors)}
-        conf_mapping = {old_id: new_id for new_id, old_id in enumerate(active_confs)}
-        term_mapping = {old_id: new_id for new_id, old_id in enumerate(active_terms)}
-        
-        # Extract edges for subgraph
-        src_p_a, dst_a = p_vs_a.nonzero()
-        src_p_c, dst_c = p_vs_c.nonzero()
-        src_p_t, dst_t = p_vs_t.nonzero()
-        
-        # Remap destination indices
-        dst_a_remapped = [author_mapping[old_id] for old_id in dst_a]
-        dst_c_remapped = [conf_mapping[old_id] for old_id in dst_c]
-        dst_t_remapped = [term_mapping[old_id] for old_id in dst_t]
-        
-        # Create reverse edges
-        src_a_p = dst_a_remapped
-        dst_p_a = src_p_a
-        src_c_p = dst_c_remapped
-        dst_p_c = src_p_c
-        src_t_p = dst_t_remapped
-        dst_p_t = src_p_t
-        
-        # Create snapshot graph data
+        # Create snapshot graph data for DGL
+        # Source nodes for reverse edges are the remapped new IDs.
+        # Destination paper IDs are original (0 to max_paper_idx-1), corresponding to filtered_src_p arrays.
         snapshot_graph_data = {
-            ('p', 'pa', 'a'): (src_p_a, dst_a_remapped),
-            ('a', 'ap', 'p'): (src_a_p, dst_p_a),
-            ('p', 'pc', 'c'): (src_p_c, dst_c_remapped),
-            ('c', 'cp', 'p'): (src_c_p, dst_p_c),
-            ('p', 'pt', 't'): (src_p_t, dst_t_remapped),
-            ('t', 'tp', 'p'): (src_t_p, dst_p_t),
+            ('p', 'pa', 'a'): (filtered_src_p_for_a, remapped_dst_a),
+            ('a', 'ap', 'p'): (remapped_dst_a, filtered_src_p_for_a),
+            ('p', 'pc', 'c'): (filtered_src_p_for_c, remapped_dst_c),
+            ('c', 'cp', 'p'): (remapped_dst_c, filtered_src_p_for_c),
+            ('p', 'pt', 't'): (filtered_src_p_for_t, remapped_dst_t),
+            ('t', 'tp', 'p'): (remapped_dst_t, filtered_src_p_for_t),
         }
         
         snapshot_hg = dgl.heterograph(snapshot_graph_data)
         
-        # Store mapping information for later use
-        snapshot_hg.paper_mapping = torch.arange(max_paper_idx)
-        snapshot_hg.author_mapping = torch.tensor(active_authors)
-        snapshot_hg.conf_mapping = torch.tensor(active_confs)
-        snapshot_hg.term_mapping = torch.tensor(active_terms)
+        # Store mapping of ORIGINAL node IDs that are included (and valid) in this snapshot
+        snapshot_hg.paper_mapping = torch.arange(max_paper_idx) # Papers 0..N-1
+        snapshot_hg.author_mapping = torch.tensor(valid_snapshot_author_ids, dtype=torch.long)
+        snapshot_hg.conf_mapping = torch.tensor(valid_snapshot_conf_ids, dtype=torch.long)
+        snapshot_hg.term_mapping = torch.tensor(valid_snapshot_term_ids, dtype=torch.long)
         
         return snapshot_hg
 
